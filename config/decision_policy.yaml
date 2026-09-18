@@ -1,0 +1,47 @@
+# PayProof AI Decision Engine Policy
+# Version: 2026-09-19.1
+
+policy_version: "2026-09-19.1"
+
+# Rules triggering hard hold immediately
+hard_hold:
+  - conditions:
+      - finding: "BENEFICIARY_001_NEW_ACCOUNT"
+        status: "fail"
+      - finding: "DOMAIN_001_UNRECOGNIZED_SENDER"
+        status: "fail"
+    reason: "New beneficiary account paired with unrecognized sender domain"
+  - conditions:
+      - finding: "DOMAIN_002_LOOKALIKE"
+        status: "fail"
+    reason: "Suspected lookalike/typosquatted sender domain"
+  - conditions:
+      - finding: "INVOICE_001_DUPLICATE"
+        status: "fail"
+    reason: "Duplicate invoice reference detected"
+
+# Rules requiring independent out-of-band verification
+independent_verification_required:
+  - conditions:
+      - finding: "BENEFICIARY_001_NEW_ACCOUNT"
+        status: "fail"
+    reason: "Beneficiary bank account changed from verified vendor baseline"
+  - conditions:
+      - finding: "EVIDENCE_002_MISSING_VERIFICATION"
+        status: "fail"
+    reason: "Bank account change has no recorded independent phone callback verification"
+
+# Rules requiring human review
+review_required:
+  - conditions:
+      - finding: "PO_001_MISMATCH"
+        status: "fail"
+    reason: "Discrepancy between invoice amount/currency and purchase order"
+  - conditions:
+      - finding: "AMOUNT_001_OUTLIER"
+        status: "fail"
+    reason: "Payment amount significantly deviates from historical baseline"
+  - conditions:
+      - finding: "EVIDENCE_001_MISSING_BASELINE"
+        status: "fail"
+    reason: "No verified vendor baseline exists for this payee"

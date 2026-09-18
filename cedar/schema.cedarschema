@@ -1,0 +1,72 @@
+namespace PayProof {
+    entity User in [Role] {
+        name: String,
+        email: String
+    };
+
+    entity Role = {
+        roleName: String
+    };
+
+    entity PaymentCase {
+        caseNumber: String,
+        state: String,
+        amount: Long,
+        currency: String
+    };
+
+    entity EvidenceObject {
+        evidenceType: String,
+        sha256: String
+    };
+
+    action CreateCase appliesTo {
+        principal: [User],
+        resource: [PaymentCase]
+    };
+
+    action ReadCase appliesTo {
+        principal: [User],
+        resource: [PaymentCase]
+    };
+
+    action UploadEvidence appliesTo {
+        principal: [User],
+        resource: [PaymentCase]
+    };
+
+    action AnalyzeCase appliesTo {
+        principal: [User],
+        resource: [PaymentCase]
+    };
+
+    action RequestVerification appliesTo {
+        principal: [User],
+        resource: [PaymentCase]
+    };
+
+    action RecordVerification appliesTo {
+        principal: [User],
+        resource: [PaymentCase]
+    };
+
+    action ApproveDisposition appliesTo {
+        principal: [User],
+        resource: [PaymentCase]
+    };
+
+    action OverrideHold appliesTo {
+        principal: [User],
+        resource: [PaymentCase]
+    };
+
+    action ExportCase appliesTo {
+        principal: [User],
+        resource: [PaymentCase]
+    };
+
+    action ManageBaseline appliesTo {
+        principal: [User],
+        resource: [PaymentCase]
+    };
+}

@@ -1,0 +1,78 @@
+import json
+import logging
+from typing import Any
+import httpx
+from ..config import settings
+
+logger = logging.getLogger("payproof.nim")
+
+class NimClient:
+    def __init__(self, api_key: str | None = None, base_url: str | None = None, model: str | None = None):
+        self.api_key = api_key if api_key is not None else settings.nvidia_api_key
+        self.base_url = (base_url or settings.nvidia_base_url).rstrip("/")
+        self.model = model or settings.nvidia_model
+        self.timeout = settings.nim_timeout_seconds
+
+    def is_configured(self) -> bool:
+        return bool(self.api_key and self.api_key.strip() and not self.api_key.startswith("your_"))
+
+    async def test_connection(self) -> dict[str, Any]:
+        """Tests the NVIDIA NIM connection."""
+        if not self.is_configured():
+            return {"success": False, "message": "NVIDIA_API_KEY is not configured."}
+
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
+        payload = {
+            "model": self.model,
+            "messages": [{"role": "user", "content": "Ping"}],
+            "max_tokens": 5,
+        }
+
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                res = await client.post(f"{self.base_url}/chat/completions", headers=headers, json=payload)
+                if res.status_code == 200:
+                    return {"success": True, "message": f"Successfully connected to NVIDIA NIM ({self.model})"}
+                else:
+                    return {"success": False, "message": f"NVIDIA API responded with HTTP {res.status_code}: {res.text[:200]}"}
+        except Exception as e:
+            return {"success": False, "message": f"Connection failed: {str(e)}"}
+
+    async def generate_chat_completion(self, system_prompt: str, user_prompt: str) -> str | None:
+        if not self.is_configured():
+            logger.info("NVIDIA API key not configured; skipping NIM inference.")
+            return None
+
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
+        payload = {
+            "model": self.model,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            "temperature": 0.1,
+            "max_tokens": 1500,
+        }
+
+        try:
+            async with httpx.AsyncClient(timeout=self.timeout) as client:
+                res = await client.post(f"{self.base_url}/chat/completions", headers=headers, json=payload)
+                if res.status_code != 200:
+                    logger.warning("NIM API returned status %d: %s", res.status_code, res.text[:200])
+                    return None
+                data = res.json()
+                return data["choices"][0]["message"]["content"]
+        except httpx.TimeoutException:
+            logger.warning("NIM API call timed out after %s seconds", self.timeout)
+            return None
+        except Exception as e:
+            logger.warning("NIM API call failed: %s", str(e))
+            return None
+
+nim_client = NimClient()
