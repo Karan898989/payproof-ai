@@ -17,28 +17,35 @@ jobs:
           EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
 
         run: |
+          set -e
+
+          echo "Preparing SSH..."
           mkdir -p ~/.ssh
-          echo "$EC2_SSH_KEY" > ~/.ssh/deploy_key
+
+          echo "$EC2_SSH_KEY" | base64 --decode > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
 
           ssh-keyscan -H "$EC2_HOST" >> ~/.ssh/known_hosts
 
+          echo "Connecting to EC2..."
+
           ssh -i ~/.ssh/deploy_key "$EC2_USER@$EC2_HOST" << 'EOF'
             set -e
 
+            echo "Opening PayProof AI project..."
             cd /home/ec2-user/payproof-ai
 
-            echo "Pulling latest code..."
+            echo "Pulling latest code from GitHub..."
             git fetch origin main
             git reset --hard origin/main
 
-            echo "Building Docker image..."
+            echo "Building latest Docker image..."
             sudo docker build -t payproof-ai .
 
-            echo "Replacing old container..."
+            echo "Removing old container..."
             sudo docker rm -f payproof-ai || true
 
-            echo "Starting new container..."
+            echo "Starting updated container..."
             sudo docker run -d \
               --name payproof-ai \
               --restart unless-stopped \
@@ -46,11 +53,11 @@ jobs:
               -v payproof-data:/app/.var \
               payproof-ai
 
-            echo "Waiting for application..."
+            echo "Waiting for PayProof AI to start..."
             sleep 10
 
-            echo "Checking health..."
+            echo "Running health check..."
             curl --fail http://127.0.0.1:8000/health/live
 
-            echo "DEPLOYMENT SUCCESSFUL"
+            echo "PayProof AI deployment successful!"
           EOF
