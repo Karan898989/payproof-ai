@@ -1,0 +1,14 @@
+version: 1.0
+runtime: python311
+build:
+  commands:
+    build:
+      - pip install -r requirements.txt
+      - pip install -e .
+      - python -c "import sys; sys.path.insert(0, 'src'); from payproof.repositories.db import init_db; init_db(); from payproof.repositories.case_repo import case_repo; cases = case_repo.list_cases(); (print('Seeding...') or __import__('asyncio').run(__import__('scripts.seed_data', fromlist=['seed_all']).seed_all())) if not cases else None"
+run:
+  runtime-version: 3.11
+  command: uvicorn payproof.main:app --host 0.0.0.0 --port 8000
+  network:
+    port: 8000
+    env: APP_PORT
