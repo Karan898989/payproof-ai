@@ -86,10 +86,28 @@ async function handleCreateCase(e) {
     const currency = document.getElementById('new-currency').value;
     const invoiceRef = document.getElementById('new-invoice-ref').value.trim() || null;
 
+    const errorEl = document.getElementById('new-case-error');
+    if (errorEl) {
+        errorEl.textContent = '';
+        errorEl.classList.add('hidden');
+    }
+
+    const submitBtn = e.target.querySelector('button[type="submit"]');
+    const originalText = submitBtn ? submitBtn.innerText : "Create Case";
+    if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerText = "Creating Case...";
+    }
+
+    const currentRole = document.getElementById('iam-role-select')?.value || 'analyst';
+
     try {
         const res = await fetch('/api/v1/cases', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+                'Content-Type': 'application/json',
+                'X-PayProof-User': currentRole
+            },
             body: JSON.stringify({
                 case_number: caseNumber,
                 vendor_id: vendorId,
@@ -102,14 +120,33 @@ async function handleCreateCase(e) {
 
         if (!res.ok) {
             const err = await res.json();
-            alert("Error: " + (err.detail || "Failed to create case"));
+            const msg = err.detail || "Failed to create case";
+            if (errorEl) {
+                errorEl.textContent = msg;
+                errorEl.classList.remove('hidden');
+            } else {
+                alert("Error: " + msg);
+            }
+            if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.innerText = originalText;
+            }
             return;
         }
 
         const data = await res.json();
         window.location.href = `/cases/${data.id}`;
     } catch (err) {
-        alert("Failed to create case: " + err.message);
+        if (errorEl) {
+            errorEl.textContent = "Failed to create case: " + err.message;
+            errorEl.classList.remove('hidden');
+        } else {
+            alert("Failed to create case: " + err.message);
+        }
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.innerText = originalText;
+        }
     }
 }
 

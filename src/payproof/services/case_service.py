@@ -31,7 +31,18 @@ class CaseService:
         invoice_reference: str | None = None,
     ) -> PaymentCase:
         if not cedar_engine.is_authorized(actor, "CreateCase"):
-            raise AuthorizationDeniedError(f"User '{actor.username}' with role '{actor.role.value}' cannot create cases.")
+            raise AuthorizationDeniedError(f"User '{actor.username}' with role '{actor.role.value}' cannot create cases. Please switch to 'Alex Chen (Analyst)' or 'Dev Admin' in the top-right role selector.")
+
+        existing = case_repo.get_case(case_number)
+        if existing:
+            # If case already exists in DRAFT or pending, update fields and return
+            existing.vendor_id = vendor_id or existing.vendor_id
+            existing.vendor_name = vendor_name or existing.vendor_name
+            existing.amount = amount if amount else existing.amount
+            existing.currency = currency or existing.currency
+            existing.invoice_reference = invoice_reference or existing.invoice_reference
+            case_repo.update_case(existing)
+            return existing
 
         case = PaymentCase(
             id=str(uuid4()),

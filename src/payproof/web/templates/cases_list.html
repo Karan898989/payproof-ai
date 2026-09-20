@@ -180,6 +180,7 @@
             </button>
         </div>
         <form onsubmit="handleCreateCase(event)" class="p-6 space-y-4">
+            <div id="new-case-error" class="hidden p-3 bg-red-50 border border-red-200 rounded-lg text-xs font-semibold text-red-700 flex items-center space-x-2"></div>
             <div>
                 <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Case Number</label>
                 <input type="text" id="new-case-number" required placeholder="e.g. CAS-2026-004" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500">

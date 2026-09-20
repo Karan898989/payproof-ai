@@ -37,6 +37,8 @@ forbid (
 permit (
     principal in PayProof::Role::"Approver",
     action in [
+        PayProof::Action::"CreateCase",
+        PayProof::Action::"UploadEvidence",
         PayProof::Action::"ReadCase",
         PayProof::Action::"AnalyzeCase",
         PayProof::Action::"RequestVerification",
