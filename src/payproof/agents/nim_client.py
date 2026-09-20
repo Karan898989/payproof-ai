@@ -1,3 +1,4 @@
+import os
 import json
 import logging
 from typing import Any
@@ -8,13 +9,32 @@ logger = logging.getLogger("payproof.nim")
 
 class NimClient:
     def __init__(self, api_key: str | None = None, base_url: str | None = None, model: str | None = None):
-        self.api_key = api_key if api_key is not None else settings.nvidia_api_key
+        self._api_key = api_key
         self.base_url = (base_url or settings.nvidia_base_url).rstrip("/")
         self.model = model or settings.nvidia_model
         self.timeout = settings.nim_timeout_seconds
 
+    @property
+    def api_key(self) -> str:
+        if self._api_key is not None and self._api_key.strip():
+            return self._api_key.strip()
+        if settings.nvidia_api_key and settings.nvidia_api_key.strip():
+            return settings.nvidia_api_key.strip()
+        return os.getenv("NVIDIA_API_KEY", "").strip()
+
+    @api_key.setter
+    def api_key(self, val: str | None):
+        self._api_key = val.strip() if val else ""
+
     def is_configured(self) -> bool:
-        return bool(self.api_key and self.api_key.strip() and not self.api_key.startswith("your_"))
+        k = self.api_key
+        return bool(
+            k
+            and len(k) > 5
+            and not k.startswith("your_")
+            and not k.startswith("nvapi-placeholder")
+            and k != "..."
+        )
 
     async def test_connection(self) -> dict[str, Any]:
         """Tests the NVIDIA NIM connection."""
@@ -24,6 +44,7 @@ class NimClient:
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
+            "Accept": "application/json",
         }
         payload = {
             "model": self.model,
@@ -49,6 +70,7 @@ class NimClient:
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
+            "Accept": "application/json",
         }
         payload = {
             "model": self.model,
@@ -67,7 +89,9 @@ class NimClient:
                     logger.warning("NIM API returned status %d: %s", res.status_code, res.text[:200])
                     return None
                 data = res.json()
-                return data["choices"][0]["message"]["content"]
+                if "choices" in data and len(data["choices"]) > 0:
+                    return data["choices"][0]["message"]["content"]
+                return None
         except httpx.TimeoutException:
             logger.warning("NIM API call timed out after %s seconds", self.timeout)
             return None

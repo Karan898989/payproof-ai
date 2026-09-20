@@ -5,6 +5,8 @@ on:
     branches:
       - main
 
+  workflow_dispatch:
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -15,6 +17,7 @@ jobs:
           EC2_HOST: ${{ secrets.EC2_HOST }}
           EC2_USER: ${{ secrets.EC2_USER }}
           EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+          NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
 
         run: |
           set -e
@@ -27,9 +30,9 @@ jobs:
 
           ssh-keyscan -H "$EC2_HOST" >> ~/.ssh/known_hosts
 
-          echo "Connecting to EC2..."
+          echo "Connecting to EC2 and updating PayProof AI..."
 
-          ssh -i ~/.ssh/deploy_key "$EC2_USER@$EC2_HOST" << 'EOF'
+          ssh -i ~/.ssh/deploy_key "$EC2_USER@$EC2_HOST" "bash -s" << EOF
             set -e
 
             echo "Opening PayProof AI project..."
@@ -39,25 +42,36 @@ jobs:
             git fetch origin main
             git reset --hard origin/main
 
+            echo "Configuring environment variables for NVIDIA NIM..."
+            cat << 'ENVEOF' > .env
+NVIDIA_API_KEY=${NVIDIA_API_KEY}
+NVIDIA_MODEL=nvidia/nemotron-3-ultra-550b-a55b
+NVIDIA_BASE_URL=https://integrate.api.nvidia.com/v1
+ENVEOF
+            chmod 600 .env
+
             echo "Building latest Docker image..."
             sudo docker build -t payproof-ai .
 
             echo "Removing old container..."
             sudo docker rm -f payproof-ai || true
 
-            echo "Starting updated container..."
-            sudo docker run -d \
-              --name payproof-ai \
-              --restart unless-stopped \
-              -p 127.0.0.1:8000:8000 \
-              -v payproof-data:/app/.var \
+            echo "Starting updated container with NVIDIA NIM..."
+            sudo docker run -d \\
+              --name payproof-ai \\
+              --restart unless-stopped \\
+              -p 127.0.0.1:8000:8000 \\
+              --env-file .env \\
+              -e NVIDIA_API_KEY="${NVIDIA_API_KEY}" \\
+              -v payproof-data:/app/.var \\
               payproof-ai
 
             echo "Waiting for PayProof AI to start..."
             sleep 10
 
-            echo "Running health check..."
+            echo "Running health checks..."
             curl --fail http://127.0.0.1:8000/health/live
+            curl --fail http://127.0.0.1:8000/health/ready
 
-            echo "PayProof AI deployment successful!"
-          EOF
+            echo "PayProof AI deployment successful! NVIDIA NIM configured."
+EOF

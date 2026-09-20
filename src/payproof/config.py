@@ -25,17 +25,16 @@ class Settings(BaseModel):
 
     @classmethod
     def load(cls) -> "Settings":
-        # Load from .env if present
-        env_path = Path(".env")
-        if env_path.exists():
-            with open(env_path, "r", encoding="utf-8") as f:
-                for line in f:
-                    line = line.strip()
-                    if line and not line.startswith("#") and "=" in line:
-                        k, v = line.split("=", 1)
-                        os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
-
         base_dir = Path(__file__).resolve().parent.parent.parent
+        # Load from .env if present
+        for ep in (Path(".env"), base_dir / ".env"):
+            if ep.exists():
+                with open(ep, "r", encoding="utf-8") as f:
+                    for line in f:
+                        line = line.strip()
+                        if line and not line.startswith("#") and "=" in line:
+                            k, v = line.split("=", 1)
+                            os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
         db_p = Path(os.getenv("DATABASE_PATH", ".var/payproof.db"))
         if not db_p.is_absolute():
             db_p = base_dir / db_p

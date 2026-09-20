@@ -19,6 +19,8 @@ jobs:
           python-version: "3.11"
 
       - name: Install dependencies & run tests
+        env:
+          NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
         run: |
           pip install -r requirements.txt
           pip install -e .

@@ -10,6 +10,30 @@ from ..rules.base import CaseContext
 
 logger = logging.getLogger("payproof.agent")
 
+def _extract_json(raw: str) -> dict:
+    """Extracts and parses JSON object from LLM response, handling thinking tokens, markdown fences, and preambles."""
+    # 1. Remove reasoning / <think> blocks if present
+    cleaned = re.sub(r"<think>.*?</think>", "", raw, flags=re.DOTALL).strip()
+
+    # 2. Extract markdown code block if present
+    fence_match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", cleaned, flags=re.DOTALL)
+    if fence_match:
+        return json.loads(fence_match.group(1))
+
+    # 3. Try direct JSON parse
+    try:
+        return json.loads(cleaned)
+    except json.JSONDecodeError:
+        pass
+
+    # 4. Search for root JSON structure { ... }
+    start_idx = cleaned.find("{")
+    end_idx = cleaned.rfind("}")
+    if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
+        return json.loads(cleaned[start_idx : end_idx + 1])
+
+    raise ValueError("No valid JSON object found in response")
+
 class PaymentVerificationAgent:
     def __init__(self, client: NimClient | None = None):
         self.client = client or nim_client
@@ -46,13 +70,7 @@ class PaymentVerificationAgent:
 
         # Parse JSON
         try:
-            # Clean markdown fences if any
-            cleaned_json = raw_response.strip()
-            if cleaned_json.startswith("```"):
-                cleaned_json = re.sub(r"^```(?:json)?\n", "", cleaned_json)
-                cleaned_json = re.sub(r"\n```$", "", cleaned_json)
-
-            data = json.loads(cleaned_json)
+            data = _extract_json(raw_response)
             result = SemanticAnalysisResult(**data)
             return {
                 "success": True,
