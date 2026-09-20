@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-
   workflow_dispatch:
 
 jobs:
@@ -30,48 +29,62 @@ jobs:
 
           ssh-keyscan -H "$EC2_HOST" >> ~/.ssh/known_hosts
 
-          echo "Connecting to EC2 and updating PayProof AI..."
+          echo "Preparing remote deployment script..."
+          cat << 'SCRIPT_EOF' > deploy_remote.sh
+          set -e
 
-          ssh -i ~/.ssh/deploy_key "$EC2_USER@$EC2_HOST" "bash -s" << EOF
-            set -e
+          echo "Opening PayProof AI project..."
+          cd /home/ec2-user/payproof-ai
 
-            echo "Opening PayProof AI project..."
-            cd /home/ec2-user/payproof-ai
+          echo "Pulling latest code from GitHub..."
+          git fetch origin main
+          git reset --hard origin/main
 
-            echo "Pulling latest code from GitHub..."
-            git fetch origin main
-            git reset --hard origin/main
+          echo "Configuring environment variables for NVIDIA NIM..."
+          cat << 'ENV_EOF' > .env
+          NVIDIA_API_KEY=__NVIDIA_API_KEY__
+          NVIDIA_MODEL=nvidia/nemotron-3-ultra-550b-a55b
+          NVIDIA_BASE_URL=https://integrate.api.nvidia.com/v1
+          ENV_EOF
+          sed -i 's/^[ \t]*//' .env
+          chmod 600 .env
 
-            echo "Configuring environment variables for NVIDIA NIM..."
-            cat << 'ENVEOF' > .env
-NVIDIA_API_KEY=${NVIDIA_API_KEY}
-NVIDIA_MODEL=nvidia/nemotron-3-ultra-550b-a55b
-NVIDIA_BASE_URL=https://integrate.api.nvidia.com/v1
-ENVEOF
-            chmod 600 .env
+          echo "Building latest Docker image..."
+          sudo docker build -t payproof-ai .
 
-            echo "Building latest Docker image..."
-            sudo docker build -t payproof-ai .
+          echo "Removing old container..."
+          sudo docker rm -f payproof-ai || true
 
-            echo "Removing old container..."
-            sudo docker rm -f payproof-ai || true
+          echo "Starting updated container with NVIDIA NIM..."
+          sudo docker run -d \
+            --name payproof-ai \
+            --restart unless-stopped \
+            -p 127.0.0.1:8000:8000 \
+            --env-file .env \
+            -v payproof-data:/app/.var \
+            payproof-ai
 
-            echo "Starting updated container with NVIDIA NIM..."
-            sudo docker run -d \\
-              --name payproof-ai \\
-              --restart unless-stopped \\
-              -p 127.0.0.1:8000:8000 \\
-              --env-file .env \\
-              -e NVIDIA_API_KEY="${NVIDIA_API_KEY}" \\
-              -v payproof-data:/app/.var \\
-              payproof-ai
+          echo "Waiting for PayProof AI to start..."
+          sleep 10
 
-            echo "Waiting for PayProof AI to start..."
-            sleep 10
+          echo "Running health checks..."
+          curl --fail http://127.0.0.1:8000/health/live
+          curl --fail http://127.0.0.1:8000/health/ready
 
-            echo "Running health checks..."
-            curl --fail http://127.0.0.1:8000/health/live
-            curl --fail http://127.0.0.1:8000/health/ready
+          echo "PayProof AI deployment successful! NVIDIA NIM configured."
+          SCRIPT_EOF
 
-            echo "PayProof AI deployment successful! NVIDIA NIM configured."
-EOF
+          sed -i 's/^[ \t]*//' deploy_remote.sh
+
+          python3 -c '
+          import os
+          key = os.environ.get("NVIDIA_API_KEY", "")
+          with open("deploy_remote.sh", "r") as f:
+              content = f.read()
+          content = content.replace("__NVIDIA_API_KEY__", key)
+          with open("deploy_remote.sh", "w") as f:
+              f.write(content)
+          '
+
+          echo "Executing deployment on EC2..."
+          ssh -i ~/.ssh/deploy_key "$EC2_USER@$EC2_HOST" "bash -s" < deploy_remote.sh

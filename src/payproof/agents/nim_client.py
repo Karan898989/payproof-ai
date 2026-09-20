@@ -16,7 +16,7 @@ class NimClient:
 
     @property
     def api_key(self) -> str:
-        if self._api_key is not None and self._api_key.strip():
+        if self._api_key is not None:
             return self._api_key.strip()
         if settings.nvidia_api_key and settings.nvidia_api_key.strip():
             return settings.nvidia_api_key.strip()
@@ -24,7 +24,7 @@ class NimClient:
 
     @api_key.setter
     def api_key(self, val: str | None):
-        self._api_key = val.strip() if val else ""
+        self._api_key = val.strip() if val is not None else None
 
     def is_configured(self) -> bool:
         k = self.api_key

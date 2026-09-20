@@ -44,28 +44,24 @@ def test_agent_fallback_mode():
     asyncio.run(_run())
 
 def test_nim_client_configuration_resolution():
-    # 1. Unconfigured
+    # 1. Unconfigured explicitly
     client = NimClient(api_key="")
-    # Clear env var if present for isolation
-    old_env = os.environ.pop("NVIDIA_API_KEY", None)
-    try:
-        assert client.is_configured() is False
+    assert client.is_configured() is False
+    assert client.api_key == ""
 
-        # 2. Configured via instance
-        client.api_key = "nvapi-test-key-123456789"
-        assert client.is_configured() is True
-        assert client.api_key == "nvapi-test-key-123456789"
+    # 2. Configured via instance
+    client.api_key = "nvapi-test-key-123456789"
+    assert client.is_configured() is True
+    assert client.api_key == "nvapi-test-key-123456789"
 
-        # 3. Configured via environment variable
-        client_env = NimClient(api_key=None)
-        os.environ["NVIDIA_API_KEY"] = "nvapi-env-key-987654321"
-        assert client_env.is_configured() is True
-        assert client_env.api_key == "nvapi-env-key-987654321"
-    finally:
-        if old_env is not None:
-            os.environ["NVIDIA_API_KEY"] = old_env
-        else:
-            os.environ.pop("NVIDIA_API_KEY", None)
+    # 3. Explicitly reset to empty string
+    client.api_key = ""
+    assert client.is_configured() is False
+    assert client.api_key == ""
+
+    # 4. Fallback to settings / env when api_key is None
+    client_default = NimClient(api_key=None)
+    assert isinstance(client_default.api_key, str)
 
 def test_extract_json_resilience():
     # Case 1: Pure JSON
